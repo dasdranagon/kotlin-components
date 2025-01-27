@@ -23,8 +23,10 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothStatusCodes
 import com.splendo.kaluga.bluetooth.CharacteristicWrapper
+import com.splendo.kaluga.bluetooth.DefaultDescriptorWrapper
 import com.splendo.kaluga.bluetooth.DescriptorWrapper
 import com.splendo.kaluga.bluetooth.MTU
+import com.splendo.kaluga.bluetooth.UUID
 
 /**
  * A wrapper to access a [BluetoothGatt]
@@ -112,6 +114,10 @@ interface BluetoothGattWrapper {
 @SuppressLint("MissingPermission")
 class DefaultBluetoothGattWrapper(private val gatt: BluetoothGatt) : BluetoothGattWrapper {
 
+    companion object {
+        private val NOTIFICATION_DESCRIPTOR = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+    }
+
     override fun connect(): Boolean = gatt.connect()
 
     override fun discoverServices(): Boolean = gatt.discoverServices()
@@ -164,7 +170,14 @@ class DefaultBluetoothGattWrapper(private val gatt: BluetoothGatt) : BluetoothGa
 
     override fun setCharacteristicNotification(wrapper: CharacteristicWrapper, enable: Boolean): Boolean {
         val characteristic = getCharacteristic(wrapper) ?: return false
-        return gatt.setCharacteristicNotification(characteristic, enable)
+        return if (gatt.setCharacteristicNotification(characteristic, enable)) {
+            writeDescriptor(
+                DefaultDescriptorWrapper(characteristic.getDescriptor(NOTIFICATION_DESCRIPTOR)),
+                if (enable) BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE else BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+            )
+        } else {
+            false
+        }
     }
 
     private fun getCharacteristic(wrapper: CharacteristicWrapper): BluetoothGattCharacteristic? = gatt.getService(wrapper.service.uuid)?.getCharacteristic(wrapper.uuid)
